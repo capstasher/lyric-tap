@@ -14,6 +14,16 @@ on:
 permissions:
   contents: write
 
+# Publishing a release from the web UI fires twice: `push` for the tag it
+# creates, and `release` for the publication itself. Both triggers are kept so
+# either route works, but they must not reach the publish step together — one
+# would create the release while the other collided with it. Queue rather than
+# cancel, so the second run attaches the package to what the first produced and
+# both finish green.
+concurrency:
+  group: release-${{ github.event.release.tag_name || github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
