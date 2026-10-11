@@ -3,6 +3,8 @@ name: Release
 on:
   push:
     tags: ['v*']
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       tag:
@@ -16,7 +18,18 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
+      - name: Work out which tag is being released
+        run: |
+          tag="${{ github.event.release.tag_name || github.event.inputs.tag || github.ref_name }}"
+          if [ -z "$tag" ]; then
+            echo "Could not determine a tag to release" >&2
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_ENV"
+
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.tag }}
 
       - uses: actions/setup-node@v4
         with:
@@ -30,14 +43,12 @@ jobs:
 
       - name: Check the tag matches the manifest version
         run: |
-          tag="${{ github.event.inputs.tag || github.ref_name }}"
           manifest=$(node -p "require('./extension/manifest.json').version")
           if [ "$tag" != "v$manifest" ]; then
             echo "Tag $tag does not match manifest version $manifest" >&2
             exit 1
           fi
           echo "version=$manifest" >> "$GITHUB_ENV"
-          echo "tag=$tag" >> "$GITHUB_ENV"
 
       - name: Pull the notes for this version out of the changelog
         run: |
@@ -52,11 +63,24 @@ jobs:
           fi
           cat release-notes.md
 
-      - name: Publish the release
+      # The release may already exist — someone can draft and publish one from
+      # the web UI, which is also what creates the tag. In that case attach the
+      # built package to it rather than failing on a duplicate.
+      - name: Publish the release, or attach to the existing one
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$tag" \
-            "dist/lyric-tap-v$version.zip" \
-            --title "Lyric Tap $tag" \
-            --notes-file release-notes.md
+          asset="dist/lyric-tap-v$version.zip"
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag exists; uploading the package to it."
+            gh release upload "$tag" "$asset" --clobber
+          else
+            echo "Creating release $tag."
+            gh release create "$tag" "$asset" \
+              --title "Lyric Tap $tag" \
+              --notes-file release-notes.md
+          fi
+
+          gh release view "$tag" --json tagName,assets \
+            --jq '.tagName + " — assets: " + ([.assets[].name] | join(", "))'
