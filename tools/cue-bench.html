@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cue Bench — synced lyrics to caption cues and LRC</title>
+<style>
+  :root {
+    --ink:        #16110f;
+    --panel:      #1e1715;
+    --panel-edge: #2f2622;
+    --brass:      #c79b4a;
+    --brass-dim:  #8a6c33;
+    --oxblood:    #7a2b22;
+    --parchment:  #e8dfcf;
+    --muted:      #9a8c7a;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", "DejaVu Sans Mono", Menlo, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 2.5rem 1.5rem 4rem;
+    background: var(--ink);
+    color: var(--parchment);
+    font: 400 17px/1.65 var(--serif);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sheet { max-width: 62rem; margin: 0 auto; }
+
+  header { border-bottom: 1px solid var(--brass-dim); padding-bottom: 1.1rem; margin-bottom: 2rem; }
+  h1 { font: 400 2.1rem/1.15 var(--serif); letter-spacing: 0.01em; margin: 0 0 .35rem; }
+  header p { margin: 0; color: var(--muted); max-width: 54ch; font-size: .95rem; }
+
+  h2 { font: italic 400 1.05rem/1.3 var(--serif); color: var(--brass); margin: 0 0 .6rem; }
+
+  .pane { margin-bottom: 1.75rem; }
+
+  textarea {
+    width: 100%;
+    background: var(--panel);
+    color: var(--parchment);
+    border: 1px solid var(--panel-edge);
+    border-radius: 2px;
+    padding: .9rem 1rem;
+    font: 400 13px/1.55 var(--mono);
+    resize: vertical;
+    tab-size: 2;
+  }
+  #source { min-height: 9rem; }
+  #result { min-height: 14rem; }
+  textarea:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible {
+    outline: 2px solid var(--brass);
+    outline-offset: 2px;
+  }
+  textarea::placeholder { color: #6b5f52; }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.1rem 1.6rem;
+    align-items: flex-end;
+    padding: 1.1rem 0 1.4rem;
+    border-top: 1px solid var(--panel-edge);
+    margin-bottom: 0;
+  }
+  .controls.tags {
+    border-top: 1px dotted var(--panel-edge);
+    padding-top: 1rem;
+  }
+  .controls.last { border-bottom: 1px solid var(--panel-edge); margin-bottom: 1.6rem; }
+
+  .field { display: flex; flex-direction: column; gap: .3rem; }
+  .field label { font-size: .9rem; color: var(--muted); font-style: italic; }
+  .field select, .field input {
+    background: var(--panel);
+    color: var(--parchment);
+    border: 1px solid var(--panel-edge);
+    border-radius: 2px;
+    padding: .45rem .55rem;
+    font: 400 13px/1.4 var(--mono);
+  }
+  .field input[type=number] { width: 6.5rem; }
+  .field input[type=text] { width: 11rem; }
+  .hint { font-size: .82rem; color: #6b5f52; font-style: italic; }
+
+  .check { display: flex; align-items: center; gap: .45rem; font-size: .93rem; color: var(--muted); padding-bottom: .35rem; }
+  .check input { accent-color: var(--brass); width: 1rem; height: 1rem; }
+
+  .legend { width: 100%; margin: 0; font: italic 400 .95rem/1.3 var(--serif); color: var(--brass-dim); }
+
+  button {
+    font: 400 15px/1 var(--serif);
+    padding: .7rem 1.35rem;
+    border-radius: 2px;
+    border: 1px solid var(--brass-dim);
+    background: transparent;
+    color: var(--brass);
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--brass); color: var(--parchment); }
+  button[disabled] { opacity: .4; cursor: default; }
+  button.primary {
+    background: var(--oxblood);
+    border-color: var(--oxblood);
+    color: #f4ece0;
+    margin-left: auto;
+  }
+  button.primary:hover { background: #8f342a; border-color: var(--brass-dim); }
+
+  .readout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.75rem;
+    margin: 1rem 0 .9rem;
+    font: 400 13px/1.4 var(--mono);
+    color: var(--muted);
+  }
+  .readout .figure { font-size: 1.35rem; color: var(--parchment); display: block; }
+
+  .actions { display: flex; gap: .7rem; flex-wrap: wrap; margin-top: .9rem; align-items: center; }
+  .actions .filename { font: 400 12px/1 var(--mono); color: #6b5f52; }
+
+  #notice {
+    margin: 1rem 0 0;
+    padding: .7rem .95rem;
+    border-left: 3px solid var(--oxblood);
+    background: #241a17;
+    font-size: .95rem;
+    display: none;
+  }
+  #notice.shown { display: block; }
+
+  footer {
+    margin-top: 2.75rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid var(--panel-edge);
+    color: var(--muted);
+    font-size: .93rem;
+    max-width: 62ch;
+  }
+  footer h3 { font: italic 400 1rem/1.3 var(--serif); color: var(--brass); margin: 1.4rem 0 .4rem; }
+  footer h3:first-child { margin-top: 0; }
+  footer ol { padding-left: 1.15rem; margin: .4rem 0 0; }
+  footer li { margin-bottom: .4rem; }
+  code { font: 400 .85em var(--mono); color: var(--brass); }
+
+  [hidden] { display: none !important; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="sheet">
+
+  <header>
+    <h1>Cue Bench</h1>
+    <p>Turns a line-synced lyrics payload into caption cues for OpenShot or an .lrc file for MiniLyrics. Everything happens in this page — nothing is uploaded anywhere.</p>
+  </header>
+
+  <section class="pane">
+    <h2>Paste the lyrics JSON</h2>
+    <textarea id="source" spellcheck="false" placeholder='{"lyrics":{"syncType":"LINE_SYNCED","lines":[ … ]}}'></textarea>
+  </section>
+
+  <div class="controls">
+    <div class="field">
+      <label for="format">Output</label>
+      <select id="format">
+        <option value="caption">Caption box (OpenShot)</option>
+        <option value="srt">SubRip file (.srt)</option>
+        <option value="vtt">WebVTT file (.vtt)</option>
+        <option value="lrc">Lyrics file (.lrc)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="shift">Shift, seconds</label>
+      <input id="shift" type="number" step="0.1" value="0">
+      <span class="hint">negative pulls earlier</span>
+    </div>
+    <div class="field cue-only">
+      <label for="maxdur">Longest cue, seconds</label>
+      <input id="maxdur" type="number" step="0.5" min="0" value="0">
+      <span class="hint">0 leaves them uncapped</span>
+    </div>
+    <div class="field cue-only">
+      <label for="tail">Hold final cue</label>
+      <input id="tail" type="number" step="0.5" min="0.5" value="4">
+    </div>
+    <div class="field lrc-only">
+      <label for="precision">Timestamps</label>
+      <select id="precision">
+        <option value="2">Hundredths — [mm:ss.xx]</option>
+        <option value="3">Milliseconds — [mm:ss.xxx]</option>
+      </select>
+    </div>
+    <label class="check lrc-only"><input type="checkbox" id="gaps" checked> blank lines at the intro and instrumental gaps</label>
+    <label class="check lrc-only"><input type="checkbox" id="merge" checked> stack timestamps on repeated lines</label>
+    <label class="check lrc-only"><input type="checkbox" id="bom" checked> UTF-8 byte-order mark</label>
+    <button class="primary" id="convert">Build</button>
+  </div>
+
+  <div class="controls tags last lrc-only">
+    <p class="legend">ID tags — leave a field empty to omit its tag</p>
+    <div class="field"><label for="tagTi">Title</label><input id="tagTi" type="text" spellcheck="false"></div>
+    <div class="field"><label for="tagAr">Artist</label><input id="tagAr" type="text" spellcheck="false"></div>
+    <div class="field"><label for="tagAl">Album</label><input id="tagAl" type="text" spellcheck="false"></div>
+    <div class="field"><label for="tagBy">Made by</label><input id="tagBy" type="text" spellcheck="false"></div>
+    <div class="field">
+      <label for="tagOffset">offset tag, ms</label>
+      <input id="tagOffset" type="number" step="10" value="0">
+      <span class="hint">shifts at playback, not in the stamps</span>
+    </div>
+  </div>
+
+  <div class="controls last cue-only" style="padding-top:0;border-top:none;"></div>
+
+  <p id="notice"></p>
+
+  <section class="pane">
+    <h2 id="outputHeading">Cues</h2>
+    <div class="readout">
+      <span><span class="figure" id="count">—</span><span id="countLabel">cues</span></span>
+      <span><span class="figure" id="span">—</span>first to last</span>
+      <span><span class="figure" id="skipped">—</span><span id="skippedLabel">gaps skipped</span></span>
+    </div>
+    <textarea id="result" spellcheck="false" readonly placeholder="Output appears here."></textarea>
+    <div class="actions">
+      <button id="copy" disabled>Copy to clipboard</button>
+      <button id="download" disabled>Download file</button>
+      <span class="filename" id="filename"></span>
+    </div>
+  </section>
+
+  <footer>
+    <h3>OpenShot</h3>
+    <ol>
+      <li>Drop your song and background clip on the timeline.</li>
+      <li>Effects tab, drag <b>Caption</b> onto the clip the words should sit on.</li>
+      <li>Click the effect's green marker, select the placeholder text, paste.</li>
+      <li>Position and size with the effect's margin properties, never the Transform tool.</li>
+    </ol>
+    <p>Cue times are measured from the start of the clip carrying the effect, not the timeline. Use <code>Shift</code> to compensate for a trimmed head.</p>
+
+    <h3>MiniLyrics</h3>
+    <p>Save the .lrc beside the audio file with the same base name, or in whichever folder you've set under the lyrics-download preferences. For a ripped CD that means matching each track file exactly.</p>
+    <p><code>Shift</code> bakes the correction into every timestamp. The <code>offset</code> tag leaves the stamps alone and asks the player to compensate, which is reversible but depends on the player honouring it. Positive values are meant to make lines appear earlier; test it, since players disagree about the sign.</p>
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const source = $('source'), result = $('result'), notice = $('notice');
+  const copyBtn = $('copy'), downloadBtn = $('download');
+  let lastText = '', lastName = '', lastBom = false;
+
+  function say(message) {
+    notice.textContent = message;
+    notice.classList.toggle('shown', Boolean(message));
+  }
+
+  function isLrc() { return $('format').value === 'lrc'; }
+
+  function syncControls() {
+    const lrc = isLrc();
+    document.querySelectorAll('.lrc-only').forEach(el => { el.hidden = !lrc; });
+    document.querySelectorAll('.cue-only').forEach(el => { el.hidden = lrc; });
+    $('outputHeading').textContent = lrc ? 'Lyrics file' : 'Cues';
+    $('countLabel').textContent = lrc ? 'lines' : 'cues';
+    $('skippedLabel').textContent = lrc ? 'gap markers' : 'gaps skipped';
+  }
+
+  const pad = (n, w) => String(n).padStart(w, '0');
+
+  // HH:MM:SS(sep)mmm for subtitle formats
+  function stamp(ms, sep) {
+    ms = Math.max(0, Math.round(ms));
+    const h = Math.floor(ms / 3600000);
+    const m = Math.floor(ms % 3600000 / 60000);
+    const s = Math.floor(ms % 60000 / 1000);
+    return `${pad(h,2)}:${pad(m,2)}:${pad(s,2)}${sep}${pad(ms % 1000, 3)}`;
+  }
+
+  // [MM:SS.xx] for LRC — minutes accumulate past 59 rather than rolling into hours
+  function lrcStamp(ms, digits) {
+    ms = Math.max(0, Math.round(ms));
+    const m = Math.floor(ms / 60000);
+    const s = Math.floor(ms % 60000 / 1000);
+    const frac = digits === 3 ? pad(ms % 1000, 3) : pad(Math.floor((ms % 1000) / 10), 2);
+    return `[${pad(m,2)}:${pad(s,2)}.${frac}]`;
+  }
+
+  function findNode(data) {
+    if (!data || typeof data !== 'object') return null;
+    if (Array.isArray(data.lines)) return data;
+    if (Array.isArray(data)) {
+      for (const value of data) {
+        const found = findNode(value);
+        if (found) return found;
+      }
+      return null;
+    }
+    for (const value of Object.values(data)) {
+      const found = findNode(value);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  function readEntries() {
+    const raw = source.value.trim();
+    if (!raw) { say('Paste the lyrics JSON above first.'); return null; }
+
+    let data;
+    try { data = JSON.parse(raw); }
+    catch (err) {
+      say('That is not valid JSON. Copy the whole payload, including the outermost braces.');
+      return null;
+    }
+
+    const node = findNode(data);
+    if (!node || !node.lines.length) {
+      say('No "lines" array in that JSON, so there is nothing to time.');
+      return null;
+    }
+
+    const entries = node.lines
+      .map(l => ({ start: parseInt(l.startTimeMs, 10) || 0, words: (l.words || '').trim() }))
+      .sort((a, b) => a.start - b.start);
+
+    const sung = entries.filter(e => e.words);
+    if (!sung.length) { say('Every line in that payload is blank.'); return null; }
+
+    // Unsynced lyrics arrive with every timestamp at zero. Nothing downstream
+    // can do anything useful with that, so stop here rather than emit a file
+    // where every line fires at the start of the track.
+    const syncType = typeof node.syncType === 'string' ? node.syncType : '';
+    const distinct = new Set(sung.map(e => e.start));
+    if (/unsync/i.test(syncType) || distinct.size < 2) {
+      say('These lyrics came back unsynced — no timings to build from.');
+      return null;
+    }
+
+    return entries;
+  }
+
+  function buildSubtitles(entries, shift) {
+    const format = $('format').value;
+    const maxDur = Math.max(0, parseFloat($('maxdur').value) || 0) * 1000;
+    const tail = Math.max(0.5, parseFloat($('tail').value) || 4) * 1000;
+    const gap = 1;
+
+    const cues = [];
+    let skipped = 0;
+
+    entries.forEach((entry, i) => {
+      if (!entry.words) { skipped++; return; }
+      const start = entry.start;
+      let end = i + 1 < entries.length ? entries[i + 1].start : start + tail;
+      end -= gap;
+      if (maxDur && end - start > maxDur) end = start + maxDur;
+      if (end <= start) end = start + 500;
+      cues.push([start + shift, end + shift, entry.words]);
+    });
+
+    if (!cues.length) { say('Every line in that payload is blank.'); return null; }
+
+    const sep = format === 'srt' ? ',' : '.';
+    const out = format === 'vtt' ? ['WEBVTT', ''] : [];
+    cues.forEach((cue, n) => {
+      if (format === 'srt') out.push(String(n + 1));
+      out.push(`${stamp(cue[0], sep)} --> ${stamp(cue[1], sep)}`);
+      out.push(cue[2]);
+      out.push('');
+    });
+
+    return {
+      text: out.join('\n'),
+      name: `captions.${format === 'caption' ? 'txt' : format}`,
+      count: cues.length,
+      extra: skipped,
+      from: cues[0][0],
+      to: cues[cues.length - 1][1],
+      bom: false
+    };
+  }
+
+  function buildLrc(entries, shift) {
+    const digits = parseInt($('precision').value, 10);
+    const keepGaps = $('gaps').checked;
+    const merge = $('merge').checked;
+
+    // Collect timed items; a blank entry becomes an empty line that clears the display
+    const items = [];
+    let gapMarkers = 0;
+    entries.forEach(entry => {
+      if (entry.words) {
+        items.push({ t: entry.start + shift, text: entry.words });
+      } else if (keepGaps && items.length && items[items.length - 1].text) {
+        items.push({ t: entry.start + shift, text: '' });
+        gapMarkers++;
+      }
+    });
+
+    if (!items.length) { say('Every line in that payload is blank.'); return null; }
+
+    // Lead-in: clear the display over the intro instead of parking the first
+    // line on screen from the moment the track starts.
+    if (keepGaps && items[0].t >= 500) {
+      items.unshift({ t: 0, text: '' });
+      gapMarkers++;
+    }
+
+    const sung = items.filter(i => i.text);
+
+    // Group repeated text under one line with stacked timestamps
+    const rows = [];
+    const seen = new Map();
+    items.forEach(item => {
+      if (merge && item.text && seen.has(item.text)) {
+        seen.get(item.text).times.push(item.t);
+        return;
+      }
+      const row = { text: item.text, times: [item.t] };
+      if (merge && item.text) seen.set(item.text, row);
+      rows.push(row);
+    });
+
+    const out = [];
+    const tag = (key, value) => { if (value) out.push(`[${key}:${value}]`); };
+    tag('ti', $('tagTi').value.trim());
+    tag('ar', $('tagAr').value.trim());
+    tag('al', $('tagAl').value.trim());
+    tag('by', $('tagBy').value.trim());
+    const offsetTag = Math.round(parseFloat($('tagOffset').value) || 0);
+    if (offsetTag) out.push(`[offset:${offsetTag > 0 ? '+' : ''}${offsetTag}]`);
+    if (out.length) out.push('');
+
+    rows.forEach(row => {
+      const stamps = row.times.sort((a, b) => a - b).map(t => lrcStamp(t, digits)).join('');
+      out.push(stamps + row.text);
+    });
+
+    const artist = $('tagAr').value.trim();
+    const title = $('tagTi').value.trim();
+    const base = [artist, title].filter(Boolean).join(' - ') || 'lyrics';
+    const safe = base.replace(/[\\/:*?"<>|]/g, '_');
+
+    return {
+      text: out.join('\n') + '\n',
+      name: `${safe}.lrc`,
+      count: sung.length,
+      extra: gapMarkers,
+      from: items[0].t,
+      to: items[items.length - 1].t,
+      bom: $('bom').checked
+    };
+  }
+
+  function build() {
+    const entries = readEntries();
+    if (!entries) return;
+
+    const shift = (parseFloat($('shift').value) || 0) * 1000;
+    const built = isLrc() ? buildLrc(entries, shift) : buildSubtitles(entries, shift);
+    if (!built) return;
+
+    lastText = built.text;
+    lastName = built.name;
+    lastBom = built.bom;
+    result.value = built.text;
+
+    $('count').textContent = built.count;
+    $('skipped').textContent = built.extra;
+    $('span').textContent = `${stamp(built.from, '.').slice(3, 8)}–${stamp(built.to, '.').slice(3, 8)}`;
+    $('filename').textContent = built.name;
+
+    copyBtn.disabled = downloadBtn.disabled = false;
+    say('');
+  }
+
+  $('convert').addEventListener('click', build);
+  $('format').addEventListener('change', () => { syncControls(); if (lastText) build(); });
+  ['shift', 'maxdur', 'tail', 'precision', 'gaps', 'merge', 'bom',
+   'tagTi', 'tagAr', 'tagAl', 'tagBy', 'tagOffset'].forEach(id =>
+    $(id).addEventListener('change', () => { if (lastText) build(); })
+  );
+
+  copyBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(lastText);
+      copyBtn.textContent = 'Copied';
+    } catch (err) {
+      result.select();
+      copyBtn.textContent = 'Selected — press Ctrl+C';
+    }
+    setTimeout(() => { copyBtn.textContent = 'Copy to clipboard'; }, 2200);
+  });
+
+  downloadBtn.addEventListener('click', () => {
+    const payload = (lastBom ? '\uFEFF' : '') + lastText;
+    const blob = new Blob([payload], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = lastName;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  syncControls();
+})();
+</script>
+</body>
+</html>

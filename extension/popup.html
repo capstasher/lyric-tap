@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lyric Tap</title>
+<style>
+  :root {
+    --ink: #16110f;
+    --panel: #1e1715;
+    --panel-edge: #2f2622;
+    --brass: #c79b4a;
+    --brass-dim: #8a6c33;
+    --oxblood: #7a2b22;
+    --parchment: #e8dfcf;
+    --muted: #9a8c7a;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --mono: ui-monospace, "Cascadia Mono", "DejaVu Sans Mono", Menlo, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    width: 420px;
+    margin: 0;
+    padding: 1rem 1.1rem 1.25rem;
+    background: var(--ink);
+    color: var(--parchment);
+    font: 400 14px/1.55 var(--serif);
+  }
+
+  h1 {
+    font: 400 1.35rem/1.2 var(--serif);
+    margin: 0 0 .15rem;
+  }
+  .sub { color: var(--muted); font-size: .82rem; margin: 0 0 .9rem; }
+
+  .divider { border-top: 1px solid var(--panel-edge); margin: .9rem 0; }
+
+  ul#captures { list-style: none; margin: 0; padding: 0; max-height: 190px; overflow-y: auto; }
+  ul#captures li {
+    border: 1px solid var(--panel-edge);
+    border-radius: 2px;
+    padding: .5rem .6rem;
+    margin-bottom: .4rem;
+    cursor: pointer;
+    background: var(--panel);
+  }
+  ul#captures li.active { border-color: var(--brass); }
+  ul#captures li.unresolved .t { color: var(--muted); font-style: italic; }
+  ul#captures li.untimed { border-style: dashed; }
+  ul#captures li .t { display: block; }
+  ul#captures li .a { display: block; color: var(--muted); font-size: .82rem; }
+
+  .flag {
+    margin-left: .45rem;
+    font: 400 .68rem/1 var(--mono);
+    color: var(--brass);
+    border: 1px solid var(--brass-dim);
+    border-radius: 2px;
+    padding: .12rem .28rem;
+    vertical-align: .08em;
+  }
+
+  .idrow {
+    display: flex;
+    align-items: baseline;
+    gap: .4rem;
+    margin: 0 0 .6rem;
+    font-size: .78rem;
+    color: var(--muted);
+    font-style: italic;
+  }
+  .idrow a { color: var(--brass-dim); font: 400 11px/1.3 var(--mono); font-style: normal; }
+  .idrow a:hover { color: var(--brass); }
+
+  .empty { color: var(--muted); font-style: italic; font-size: .88rem; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem .7rem; }
+  .field { display: flex; flex-direction: column; gap: .2rem; }
+  .field label { font-size: .78rem; color: var(--muted); font-style: italic; }
+  input[type=text], input[type=number], select {
+    background: var(--panel);
+    color: var(--parchment);
+    border: 1px solid var(--panel-edge);
+    border-radius: 2px;
+    padding: .35rem .45rem;
+    font: 400 12px/1.3 var(--mono);
+    width: 100%;
+  }
+
+  .checks { display: flex; flex-direction: column; gap: .3rem; margin-top: .6rem; }
+  .checks label { display: flex; align-items: center; gap: .4rem; font-size: .85rem; color: var(--muted); }
+  .checks input { accent-color: var(--brass); }
+
+  .actions { display: flex; gap: .45rem; flex-wrap: wrap; margin-top: .85rem; }
+  button {
+    font: 400 13px/1 var(--serif);
+    padding: .55rem .9rem;
+    border-radius: 2px;
+    border: 1px solid var(--brass-dim);
+    background: transparent;
+    color: var(--brass);
+    cursor: pointer;
+  }
+  button:hover:not([disabled]) { border-color: var(--brass); color: var(--parchment); }
+  button[disabled] { opacity: .4; cursor: default; }
+  button.primary { background: var(--oxblood); border-color: var(--oxblood); color: #f4ece0; }
+  button.quiet { border-color: transparent; color: var(--muted); margin-left: auto; padding-left: .3rem; padding-right: .3rem; }
+
+  #status { margin: .7rem 0 0; font-size: .82rem; color: var(--muted); min-height: 1.1em; }
+  #status.warn { color: var(--brass); }
+
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+  <h1>Lyric Tap</h1>
+  <p class="sub">Open the lyrics panel on a track to capture it.</p>
+
+  <ul id="captures"></ul>
+  <p class="empty" id="empty">Nothing captured yet.</p>
+
+  <div id="editor" hidden>
+    <div class="divider"></div>
+
+    <p class="idrow">track <a id="trackLink" href="#" target="_blank" rel="noreferrer">—</a></p>
+
+    <div class="grid">
+      <div class="field"><label for="title">Title</label><input id="title" type="text" spellcheck="false"></div>
+      <div class="field"><label for="artist">Artist</label><input id="artist" type="text" spellcheck="false"></div>
+      <div class="field"><label for="album">Album</label><input id="album" type="text" spellcheck="false"></div>
+      <div class="field"><label for="by">Made by</label><input id="by" type="text" spellcheck="false"></div>
+      <div class="field"><label for="shift">Shift, seconds</label><input id="shift" type="number" step="0.1" value="0"></div>
+      <div class="field"><label for="offsetTag">offset tag, ms</label><input id="offsetTag" type="number" step="10" value="0"></div>
+      <div class="field" style="grid-column: 1 / -1;">
+        <label for="precision">Timestamps</label>
+        <select id="precision">
+          <option value="2">Hundredths — [mm:ss.xx]</option>
+          <option value="3">Milliseconds — [mm:ss.xxx]</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="checks">
+      <label><input type="checkbox" id="gaps" checked> blank lines at the intro and instrumental gaps</label>
+      <label><input type="checkbox" id="merge" checked> stack timestamps on repeated lines</label>
+      <label><input type="checkbox" id="bom" checked> UTF-8 byte-order mark</label>
+    </div>
+
+    <div class="actions">
+      <button class="primary" id="saveLrc">Save .lrc</button>
+      <button id="copyLrc">Copy</button>
+      <button id="saveJson">Raw JSON</button>
+      <button class="quiet" id="forget">Forget</button>
+    </div>
+  </div>
+
+  <p id="status"></p>
+
+  <script src="lrc.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

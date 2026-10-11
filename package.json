@@ -1,0 +1,16 @@
+{
+  "name": "lyric-tap",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Saves the synced lyrics of the track playing in the Spotify web player as an .lrc file.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test",
+    "build": "node scripts/build.mjs",
+    "check": "npm test && npm run build"
+  }
+}
